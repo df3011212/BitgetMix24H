@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bitget 永續合約 24H 暴增監測</title>
+  <style>
+    :root{--bg:#0f1115;--text:#e6e6e6;--panel:#1b1f2a;--border:#2b3244;--accent:#61dafb;--badge-bg:#223;--ok:#2e7d32;--warn:#c62828;--thead:#1b2533;--logbg:#0b0d12;--long-bg:#b9f6ca;--short-bg:#ffcdd2;--hl-text:#0b0f14}
+    [data-theme="light"]{--bg:#ffffff;--text:#1a1a1a;--panel:#f7f7f9;--border:#dddddd;--accent:#1976d2;--badge-bg:#eeeeee;--ok:#2e7d32;--warn:#c62828;--thead:#f0f0f0;--logbg:#fafafa;--long-bg:#c8e6c9;--short-bg:#ffcdd2;--hl-text:#000000}
+    [data-theme="terminal"]{--bg:#0c0f0a;--text:#e5ffef;--panel:#0f1411;--border:#1a3a2a;--accent:#00ff9c;--badge-bg:#0b241a;--ok:#00c853;--warn:#ff5252;--thead:#0d1f17;--logbg:#07120d;--long-bg:#b9f6ca;--short-bg:#ffcdd2;--hl-text:#051a12}
+    body{font-family:Segoe UI,Helvetica,Arial;line-height:1.4;margin:16px;background:var(--bg);color:var(--text)}
+    h1{font-size:20px;margin:0 0 12px}
+    fieldset{border:1px solid var(--border);background:var(--panel);padding:10px;margin-bottom:12px;border-radius:8px}
+    legend{padding:0 6px;color:var(--text);opacity:.8}
+    label{display:inline-block;min-width:120px;margin:6px 0}
+    input,select,button{padding:6px 10px;margin:4px 6px 4px 0;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:6px}
+    /* 改善下拉選單在深色主題的可讀性 */
+    select, option{background:var(--panel); color:var(--text)}
+    select:focus option{background:var(--panel)}
+    option:checked{background:var(--thead)}
+    button{background:var(--panel);cursor:pointer}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{border:1px solid var(--border);padding:6px;text-align:left}
+    th{background:var(--thead)}
+    tr.long td{background:var(--long-bg);color:var(--hl-text);font-weight:600} /* 多倉綠 [[memory:7832172]] */
+    tr.short td{background:var(--short-bg);color:var(--hl-text);font-weight:600} /* 空倉紅 [[memory:7832172]] */
+    .bull{color:#2e7d32}
+    .bear{color:#c62828}
+    .badge{display:inline-block;padding:2px 6px;border-radius:6px;background:var(--badge-bg);margin-left:6px}
+    .ok{color:var(--ok)}
+    .warn{color:var(--warn)}
+    a{color:var(--accent)}
+    #log{max-height:160px;overflow:auto;border:1px solid var(--border);padding:6px;font-family:ui-monospace,Consolas,monospace;background:var(--logbg);border-radius:6px}
+    details{margin:8px 0}
+    #sound{display:none}
+    .hidden{display:none}
+    #hotWrap{margin:8px 0}
+  </style>
+  <script>
+    // 跨頁小工具
+    function fmt(num, dp) {
+      if (num === null || num === undefined || Number.isNaN(num)) return '-';
+      return Number(num).toFixed(dp);
+    }
+    function pct(a, b) {
+      if (b === 0 || b === null || b === undefined || Number.isNaN(b)) return 0;
+      return (a - b) / b * 100;
+    }
+  </script>
+  <noscript>此頁需啟用 JavaScript。</noscript>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' https://ws.bitget.com https://actions.google.com https://api.bitget.com; connect-src https://ws.bitget.com wss://ws.bitget.com https://api.bitget.com; media-src https://actions.google.com data:; img-src 'self' data:;" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="robots" content="noindex" />
+  <meta name="description" content="Bitget 永續合約（MIX）24H 暴增監測工具" />
+  <meta name="x-bitget-note" content="此頁僅作為行情監測示範，非交易建議。" />
+</head>
+<body>
+  <h1>Bitget 永續合約 24 小時漲跌幅暴增監測</h1>
+
+  <fieldset>
+    <legend>監測設定</legend>
+    <div>
+      <label for="pairs">合約代號（逗號分隔）</label>
+      <input id="pairs" value="BTCUSDT,ETHUSDT" />
+      <label for="themeSel">皮膚</label>
+      <select id="themeSel">
+        <option value="dark">深色</option>
+        <option value="light">淺色</option>
+        <option value="terminal">終端</option>
+      </select>
+    </div>
+    <div>
+      <label for="windowMin">時間窗（分鐘）</label>
+      <input id="windowMin" type="number" min="1" value="5" />
+    </div>
+    <div>
+      <label for="spikePct">瞬間變動閾值（%）</label>
+      <input id="spikePct" type="number" step="0.1" value="2" />
+    </div>
+    <div>
+      <label for="dir">方向</label>
+      <select id="dir">
+        <option value="both" selected>雙向</option>
+        <option value="up">只抓暴漲</option>
+        <option value="down">只抓暴跌</option>
+      </select>
+      <button id="rankBtn" title="依 24H 漲跌幅排序（僅雙向時生效）">排行:關</button>
+    </div>
+    <div>
+      <button id="startBtn">開始監測</button>
+      <button id="stopBtn" disabled>停止</button>
+      <span class="badge" id="statusBadge">閒置</span>
+      <button id="loadAllBtn" title="從 Bitget 取得全部 USDT 永續合約清單">載入全部USDT永續</button>
+    </div>
+  </fieldset>
+
+  <h3>事件</h3>
+  <div id="log"></div>
+
+  <details>
+    <summary>說明</summary>
+    <ul>
+      <li>使用 Bitget WebSocket <b>wss://ws.bitget.com/v2/ws/public</b> 訂閱 <b>USDT-FUTURES</b>（USDT 本位永續）<code>ticker</code>。</li>
+      <li>以 <b>時間窗</b> 的最早價做為基準，計算 <b>瞬間變動百分比</b>；超過 <b>閾值</b> 觸發警報。</li>
+      <li>多幣對同時監測（逗號分隔）；行背景：多倉綠、空倉紅（僅作視覺提醒）。</li>
+    </ul>
+  </details>
+
+  <div id="hotWrap" class="hidden">
+    <h3>異動清單（Top Movers）</h3>
+    <table id="hotTbl">
+      <thead>
+        <tr>
+          <th>合約</th>
+          <th>瞬間變動</th>
+          <th>方向</th>
+          <th>現在價</th>
+          <th>最後更新</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <table id="tbl">
+    <thead>
+      <tr>
+        <th>合約</th>
+        <th>現在價</th>
+        <th>時間窗基準價</th>
+        <th>瞬間變動</th>
+        <th>方向</th>
+        <th>24H 漲跌幅</th>
+        <th>最後更新</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <audio id="sound" preload="auto">
+    <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg" />
+  </audio>
+
+  <script>
+    (function(){
+      const WS_URL = 'wss://ws.bitget.com/v2/ws/public';
+      const PRODUCT = 'USDT-FUTURES'; // USDT 本位永續（v2）
+
+      let ws = null;
+      let running = false;
+      let heartbeatTimer = null;
+      let reconnectTimer = null;
+
+      const state = new Map(); // sym -> { prices: [{t,p}], basePrice }
+
+      const el = {
+        pairs: document.getElementById('pairs'),
+        windowMin: document.getElementById('windowMin'),
+        spikePct: document.getElementById('spikePct'),
+        dir: document.getElementById('dir'),
+        themeSel: document.getElementById('themeSel'),
+        rankBtn: document.getElementById('rankBtn'),
+        startBtn: document.getElementById('startBtn'),
+        stopBtn: document.getElementById('stopBtn'),
+        statusBadge: document.getElementById('statusBadge'),
+        tbody: document.querySelector('#tbl tbody'),
+        hotWrap: document.getElementById('hotWrap'),
+        hotTbody: document.querySelector('#hotTbl tbody'),
+        log: document.getElementById('log'),
+        sound: document.getElementById('sound'),
+      };
+
+      function log(msg, type='info'){
+        const t = new Date().toLocaleTimeString();
+        const line = document.createElement('div');
+        line.textContent = `[${t}] ${msg}`;
+        if(type==='warn') line.style.color = '#c62828';
+        el.log.prepend(line);
+      }
+
+      function updateBadge(txt, ok){
+        el.statusBadge.textContent = txt;
+        el.statusBadge.className = 'badge ' + (ok ? 'ok' : 'warn');
+      }
+
+      function ensureRow(sym){
+        let row = document.getElementById('row-'+sym);
+        if(!row){
+          row = document.createElement('tr');
+          row.id = 'row-'+sym;
+          row.innerHTML = `
+            <td>${sym}</td>
+            <td class="px">-</td>
+            <td class="base">-</td>
+            <td class="spike">-</td>
+            <td class="dir">-</td>
+            <td class="chg24">-</td>
+            <td class="ts">-</td>
+          `;
+          el.tbody.appendChild(row);
+        }
+        return row;
+      }
+
+      function ensureState(sym){
+        if(!state.has(sym)) state.set(sym, { prices: [], basePrice: null });
+        return state.get(sym);
+      }
+
+      function pruneAndBase(prices, winMs){
+        const now = Date.now();
+        while(prices.length && now - prices[0].t > winMs) prices.shift();
+        if(prices.length === 0) return null;
+        return prices[0].p;
+      }
+
+      function play(){
+        try{ el.sound.currentTime = 0; el.sound.play(); }catch(e){}
+      }
+
+      function subscribe(symbols){
+        if(!ws || ws.readyState !== WebSocket.OPEN) return;
+        const CHUNK = 200; // 分批避免訊息過大與訂閱限次
+        for(let i=0;i<symbols.length;i+=CHUNK){
+          const slice = symbols.slice(i, i+CHUNK);
+          const args = slice.map(s => ({ instType: PRODUCT, channel: 'ticker', instId: s }));
+          ws.send(JSON.stringify({ op: 'subscribe', args }));
+        }
+      }
+
+      function unsubscribeAll(){
+        if(!ws || ws.readyState !== WebSocket.OPEN) return;
+        state.forEach((_, sym) => {
+          ws.send(JSON.stringify({ op: 'unsubscribe', args: [{ instType: PRODUCT, channel: 'ticker', instId: sym }] }));
+        });
+      }
+
+      function reset(){
+        unsubscribeAll();
+        state.clear();
+        el.tbody.innerHTML = '';
+        el.log.innerHTML = '';
+      }
+
+      function handleTicker(t){
+        // 兼容欄位：有些返回使用 last / open24h，也可能是 lastPr
+        const sym = t.instId;
+        const last = parseFloat(t.last ?? t.lastPr);
+        const open24 = parseFloat(t.open24h ?? t.open24);
+
+        const row = ensureRow(sym);
+        const st = ensureState(sym);
+        const now = Date.now();
+        const winMs = Number(el.windowMin.value) * 60 * 1000;
+
+        st.prices.push({ t: now, p: last });
+        const base = pruneAndBase(st.prices, winMs);
+        st.basePrice = base;
+
+        const instant = base ? pct(last, base) : 0;
+        const chg24 = isFinite(open24) ? pct(last, open24) : null;
+        if(chg24 !== null){ st.chg24 = chg24; }
+        st.instant = instant;
+
+        row.querySelector('.px').textContent = fmt(last, 4);
+        row.querySelector('.base').textContent = fmt(base, 4);
+        const spikeTxt = base ? `${instant>=0?'+':''}${fmt(instant, 2)}%` : '-';
+        row.querySelector('.spike').textContent = spikeTxt;
+        const dirCell = row.querySelector('.dir');
+        if(dirCell){
+          dirCell.textContent = base ? (instant>=0 ? '做多' : '做空') : '-';
+          dirCell.className = 'dir ' + (instant>=0 ? 'bull' : 'bear');
+        }
+        row.querySelector('.chg24').textContent = (chg24 === null ? '-' : `${fmt(chg24, 2)}%`);
+        row.querySelector('.ts').textContent = new Date(now).toLocaleTimeString();
+
+        row.classList.remove('long','short');
+        const dir = el.dir.value;
+        const th = Number(el.spikePct.value);
+        let trigger = false;
+        if(base){
+          if((dir==='both'||dir==='up') && instant >= th){ row.classList.add('long'); trigger = true; }
+          if((dir==='both'||dir==='down') && instant <= -th){ row.classList.add('short'); trigger = true; }
+        }
+        if(trigger){
+          play();
+          log(`${sym} 瞬間變動 ${fmt(instant,2)}%（窗=${el.windowMin.value}m, 閾=${th}%）`, 'warn');
+        }
+      }
+
+      // 熱門異動清單（排行關時顯示 |instant| 大於閾值的前10名）
+      function refreshHotList(){
+        if(rankMode !== 'off'){ el.hotWrap.classList.add('hidden'); return; }
+        const th = Number(el.spikePct.value);
+        const arr = [];
+        state.forEach((st, sym) => {
+          const last = st.prices.length ? st.prices[st.prices.length-1].p : null;
+          const ts = st.prices.length ? st.prices[st.prices.length-1].t : null;
+          if(st.basePrice && typeof st.instant === 'number' && last !== null){
+            arr.push({ sym, instant: st.instant, last, ts });
+          }
+        });
+        arr.sort((a,b)=> Math.abs(b.instant) - Math.abs(a.instant));
+        const filtered = arr.filter(x=> Math.abs(x.instant) >= th).slice(0,10);
+        el.hotTbody.innerHTML = '';
+        if(filtered.length === 0){ el.hotWrap.classList.add('hidden'); return; }
+        el.hotWrap.classList.remove('hidden');
+        for(const x of filtered){
+          const tr = document.createElement('tr');
+          tr.classList.add(x.instant>=0 ? 'long' : 'short');
+          tr.innerHTML = `
+            <td>${x.sym}</td>
+            <td>${x.instant>=0?'+':''}${fmt(x.instant,2)}%</td>
+            <td class="${x.instant>=0?'bull':'bear'}">${x.instant>=0?'做多':'做空'}</td>
+            <td>${fmt(x.last,4)}</td>
+            <td>${x.ts ? new Date(x.ts).toLocaleTimeString() : '-'}</td>
+          `;
+          el.hotTbody.appendChild(tr);
+        }
+      }
+      // 24H 排行（雙向）：點按循環 顯示+最大 -> 顯示-最大 -> 關閉
+      let rankMode = 'off'; // 'off' | 'topGain' | 'topLoss'
+      function applyRanking(){
+        if(el.dir.value !== 'both'){ rankMode = 'off'; el.rankBtn.textContent = '排行:關'; return; }
+        const rows = Array.from(el.tbody.querySelectorAll('tr'));
+        rows.sort((a,b)=>{
+          const sa = a.id.replace('row-','');
+          const sb = b.id.replace('row-','');
+          const ca = (state.get(sa)||{}).chg24 ?? -Infinity;
+          const cb = (state.get(sb)||{}).chg24 ?? -Infinity;
+          if(rankMode==='topGain') return (cb - ca); // 由大到小
+          if(rankMode==='topLoss') return (ca - cb); // 由小到大（負值最小在前）
+          return 0;
+        });
+        rows.forEach(r=>el.tbody.appendChild(r));
+      }
+
+      el.rankBtn.addEventListener('click', ()=>{
+        if(el.dir.value !== 'both') { log('排行僅在「雙向」模式下生效。'); return; }
+        rankMode = (rankMode==='off') ? 'topGain' : (rankMode==='topGain' ? 'topLoss' : 'off');
+        el.rankBtn.textContent = rankMode==='off' ? '排行:關' : (rankMode==='topGain' ? '排行:+最大' : '排行:-最大');
+        applyRanking();
+      });
+
+
+      function start(){
+        if(running) return;
+        running = true;
+        updateBadge('連線中…', true);
+
+        ws = new WebSocket(WS_URL);
+
+        ws.onopen = () => {
+          updateBadge('已連線', true);
+          const symbols = el.pairs.value.split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
+          reset();
+          symbols.forEach(s => ensureRow(s));
+          subscribe(symbols);
+          log('已訂閱（USDT-FUTURES）：' + symbols.join(', '));
+
+          // 心跳保持
+          if(heartbeatTimer) clearInterval(heartbeatTimer);
+          heartbeatTimer = setInterval(() => {
+            if(ws && ws.readyState === WebSocket.OPEN){
+              try{ ws.send('ping'); }catch(e){}
+            }
+          }, 30000);
+        };
+
+        ws.onmessage = (ev) => {
+          try{
+            const data = JSON.parse(ev.data);
+            if(!data) return;
+            // 訊息結構一般為 { action: 'snapshot'|'update', arg: {channel}, data: [...] }
+            if(!data.data || !data.data.length) return;
+            if(data.arg && data.arg.channel === 'ticker'){
+              for(const t of data.data) handleTicker(t);
+              if(rankMode !== 'off') applyRanking();
+              refreshHotList();
+            }
+          }catch(e){}
+        };
+
+        ws.onerror = () => {
+          updateBadge('錯誤', false);
+          log('WebSocket 發生錯誤', 'warn');
+        };
+
+        ws.onclose = () => {
+          updateBadge('已關閉', false);
+          running = false;
+          el.startBtn.disabled = false;
+          el.stopBtn.disabled = true;
+          if(heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+          // 簡易重連（3 秒後）
+          if(reconnectTimer) clearTimeout(reconnectTimer);
+          reconnectTimer = setTimeout(() => { if(!running) start(); }, 3000);
+        };
+      }
+
+      function stop(){
+        if(reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+        if(heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+        if(ws){
+          try{ unsubscribeAll(); ws.close(); }catch(e){}
+          ws = null;
+        }
+        running = false;
+        updateBadge('閒置', true);
+      }
+
+      el.startBtn.addEventListener('click', () => {
+        el.startBtn.disabled = true;
+        el.stopBtn.disabled = false;
+        start();
+      });
+
+      el.stopBtn.addEventListener('click', () => {
+        el.startBtn.disabled = false;
+        el.stopBtn.disabled = true;
+        stop();
+      });
+
+      // 主題皮膚
+      function applyTheme(t){
+        document.documentElement.setAttribute('data-theme', t === 'dark' ? '' : t);
+        if(t === 'dark') document.documentElement.removeAttribute('data-theme');
+        try{ localStorage.setItem('bg_theme', t); }catch(e){}
+      }
+      (function initTheme(){
+        let t = 'dark';
+        try{ t = localStorage.getItem('bg_theme') || 'dark'; }catch(e){}
+        el.themeSel.value = t;
+        applyTheme(t);
+      })();
+      el.themeSel.addEventListener('change', (e)=> applyTheme(e.target.value));
+
+      // 當參數改變時刷新異動清單
+      el.spikePct.addEventListener('change', refreshHotList);
+      el.dir.addEventListener('change', refreshHotList);
+
+      // 載入全部 USDT 本位永續合約清單
+      async function loadAllUsdtFutures(){
+        updateBadge('載入合約清單…', true);
+        const collected = new Set();
+
+        async function tryFetch(url){
+          try{
+            const res = await fetch(url, { cache: 'no-store' });
+            const json = await res.json();
+            const arr = (json && json.data) ? json.data : [];
+            arr.forEach(it => {
+              const id = (it.instId || it.symbol || ((it.baseCoin||'') + (it.quoteCoin||'')) || '').toString().trim();
+              if(id) collected.add(id);
+            });
+            return true;
+          }catch(err){
+            log(`載入端點失敗：${url}`, 'warn');
+            return false;
+          }
+        }
+
+        // 1) 優先用 v2 mix tickers（最常可用且含所有USDT-FUTURES）
+        await tryFetch('https://api.bitget.com/api/v2/mix/market/tickers?productType=USDT-FUTURES');
+        // 2) 若仍不足，再試 instruments（不同環境可能返回為空）
+        if(collected.size === 0){
+          await tryFetch('https://api.bitget.com/api/v2/public/instruments?productType=USDT-FUTURES');
+        }
+        // 3) 再退回舊版 contracts 端點（可能逐步下線）
+        if(collected.size === 0){
+          await tryFetch('https://api.bitget.com/api/mix/v1/market/contracts?productType=umcbl');
+        }
+
+        const symbols = Array.from(collected);
+        if(symbols.length === 0){
+          log('未取得到任何合約代號，請稍稍後再試。', 'warn');
+          updateBadge('閒置', false);
+          return;
+        }
+
+        el.pairs.value = symbols.join(',');
+        log(`載入 ${symbols.length} 檔 USDT-FUTURES 合約。`);
+        if(running){
+          stop();
+          el.startBtn.disabled = true;
+          el.stopBtn.disabled = false;
+          start();
+        }
+        updateBadge('閒置', true);
+      }
+
+      document.getElementById('loadAllBtn').addEventListener('click', loadAllUsdtFutures);
+    })();
+  </script>
+</body>
+</html>
+
+
