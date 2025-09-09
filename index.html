@@ -132,6 +132,7 @@
         <th>現在價</th>
         <th>時間窗基準價</th>
         <th>瞬間變動</th>
+        <th>前值差</th>
         <th>方向</th>
         <th>24H 漲跌幅</th>
         <th>最後更新</th>
@@ -196,6 +197,7 @@
             <td class="px">-</td>
             <td class="base">-</td>
             <td class="spike">-</td>
+            <td class="delta">-</td>
             <td class="dir">-</td>
             <td class="chg24">-</td>
             <td class="ts">-</td>
@@ -263,12 +265,21 @@
         const instant = base ? pct(last, base) : 0;
         const chg24 = isFinite(open24) ? pct(last, open24) : null;
         if(chg24 !== null){ st.chg24 = chg24; }
+        // 計算與上一次瞬間變動的差異（百分點）
+        const prevInstant = (typeof st.instant === 'number') ? st.instant : null;
+        const delta = (prevInstant !== null && base) ? (instant - prevInstant) : null;
         st.instant = instant;
+        st.lastDelta = delta;
 
         row.querySelector('.px').textContent = fmt(last, 4);
         row.querySelector('.base').textContent = fmt(base, 4);
         const spikeTxt = base ? `${instant>=0?'+':''}${fmt(instant, 2)}%` : '-';
         row.querySelector('.spike').textContent = spikeTxt;
+        const deltaCell = row.querySelector('.delta');
+        if(deltaCell){
+          deltaCell.textContent = (delta === null ? '-' : `${delta>=0?'+':''}${fmt(delta,2)}%`);
+          deltaCell.className = 'delta ' + (delta===null?'' : (delta>=0?'bull':'bear'));
+        }
         const dirCell = row.querySelector('.dir');
         if(dirCell){
           dirCell.textContent = base ? (instant>=0 ? '做多' : '做空') : '-';
