@@ -94,6 +94,7 @@
       <button id="stopBtn" disabled>停止</button>
       <span class="badge" id="statusBadge">閒置</span>
       <button id="loadAllBtn" title="從 Bitget 取得全部 USDT 永續合約清單">載入全部USDT永續</button>
+      <button id="soundToggleBtn" title="切換提示音">聲音:開</button>
     </div>
   </fieldset>
 
@@ -155,6 +156,7 @@
       let running = false;
       let heartbeatTimer = null;
       let reconnectTimer = null;
+      let soundOn = true;
 
       const state = new Map(); // sym -> { prices: [{t,p}], basePrice }
 
@@ -173,6 +175,7 @@
         hotTbody: document.querySelector('#hotTbl tbody'),
         log: document.getElementById('log'),
         sound: document.getElementById('sound'),
+        soundToggleBtn: document.getElementById('soundToggleBtn'),
       };
 
       function log(msg, type='info'){
@@ -221,6 +224,7 @@
       }
 
       function play(){
+        if(!soundOn) return;
         try{ el.sound.currentTime = 0; el.sound.play(); }catch(e){}
       }
 
@@ -454,6 +458,20 @@
       // 當參數改變時刷新異動清單
       el.spikePct.addEventListener('change', refreshHotList);
       el.dir.addEventListener('change', refreshHotList);
+
+      // 聲音開關（預設開啟並記憶）
+      (function initSound(){
+        try{
+          const v = localStorage.getItem('bg_sound');
+          if(v===null){ soundOn = true; } else { soundOn = v === 'on'; }
+        }catch(e){ soundOn = true; }
+        el.soundToggleBtn.textContent = '聲音:' + (soundOn?'開':'關');
+      })();
+      el.soundToggleBtn.addEventListener('click', ()=>{
+        soundOn = !soundOn;
+        el.soundToggleBtn.textContent = '聲音:' + (soundOn?'開':'關');
+        try{ localStorage.setItem('bg_sound', soundOn?'on':'off'); }catch(e){}
+      });
 
       // 載入全部 USDT 本位永續合約清單
       async function loadAllUsdtFutures(){
