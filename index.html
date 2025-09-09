@@ -116,6 +116,7 @@
         <tr>
           <th>合約</th>
           <th>瞬間變動</th>
+          <th>前值差</th>
           <th>方向</th>
           <th>現在價</th>
           <th>最後更新</th>
@@ -311,7 +312,7 @@
           const last = st.prices.length ? st.prices[st.prices.length-1].p : null;
           const ts = st.prices.length ? st.prices[st.prices.length-1].t : null;
           if(st.basePrice && typeof st.instant === 'number' && last !== null){
-            arr.push({ sym, instant: st.instant, last, ts });
+            arr.push({ sym, instant: st.instant, delta: st.lastDelta ?? null, last, ts });
           }
         });
         arr.sort((a,b)=> Math.abs(b.instant) - Math.abs(a.instant));
@@ -325,6 +326,7 @@
           tr.innerHTML = `
             <td>${x.sym}</td>
             <td>${x.instant>=0?'+':''}${fmt(x.instant,2)}%</td>
+            <td class="${x.delta===null?'':(x.delta>=0?'bull':'bear')}">${x.delta===null?'-':`${x.delta>=0?'+':''}${fmt(x.delta,2)}%`}</td>
             <td class="${x.instant>=0?'bull':'bear'}">${x.instant>=0?'做多':'做空'}</td>
             <td>${fmt(x.last,4)}</td>
             <td>${x.ts ? new Date(x.ts).toLocaleTimeString() : '-'}</td>
