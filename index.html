@@ -35,6 +35,8 @@
     #sound{display:none}
     .hidden{display:none}
     #hotWrap{margin:8px 0}
+    .mini-btn{padding:2px 6px;border:1px solid var(--border);border-radius:6px;background:var(--panel);color:var(--text);cursor:pointer;font-size:12px;margin-left:6px}
+    .mini-btn:hover{border-color:var(--accent)}
   </style>
   <script>
     // 跨頁小工具
@@ -117,7 +119,7 @@
         <tr>
           <th>合約</th>
           <th>瞬間變動</th>
-          <th>前值差</th>
+          <th>累積差</th>
           <th>方向</th>
           <th>現在價</th>
           <th>最後更新</th>
@@ -270,11 +272,12 @@
         const instant = base ? pct(last, base) : 0;
         const chg24 = isFinite(open24) ? pct(last, open24) : null;
         if(chg24 !== null){ st.chg24 = chg24; }
-        // 計算與上一次瞬間變動的差異（百分點）
+        // 計算與上一次瞬間變動的差異（百分點），並累積
         const prevInstant = (typeof st.instant === 'number') ? st.instant : null;
         const delta = (prevInstant !== null && base) ? (instant - prevInstant) : null;
         st.instant = instant;
         st.lastDelta = delta;
+        st.cumDelta = (typeof st.cumDelta === 'number' ? st.cumDelta : 0) + (delta ?? 0);
 
         row.querySelector('.px').textContent = fmt(last, 4);
         row.querySelector('.base').textContent = fmt(base, 4);
@@ -316,7 +319,7 @@
           const last = st.prices.length ? st.prices[st.prices.length-1].p : null;
           const ts = st.prices.length ? st.prices[st.prices.length-1].t : null;
           if(st.basePrice && typeof st.instant === 'number' && last !== null){
-            arr.push({ sym, instant: st.instant, delta: st.lastDelta ?? null, last, ts });
+            arr.push({ sym, instant: st.instant, cumDelta: (typeof st.cumDelta==='number'?st.cumDelta:null), last, ts });
           }
         });
         arr.sort((a,b)=> Math.abs(b.instant) - Math.abs(a.instant));
@@ -328,9 +331,9 @@
           const tr = document.createElement('tr');
           tr.classList.add(x.instant>=0 ? 'long' : 'short');
           tr.innerHTML = `
-            <td>${x.sym}</td>
+            <td><span class="sym">${x.sym}</span><button class="mini-btn copy-btn" data-id="${x.sym}" title="複製ID">複製</button></td>
             <td>${x.instant>=0?'+':''}${fmt(x.instant,2)}%</td>
-            <td class="${x.delta===null?'':(x.delta>=0?'bull':'bear')}">${x.delta===null?'-':`${x.delta>=0?'+':''}${fmt(x.delta,2)}%`}</td>
+            <td class="${x.cumDelta===null?'':(x.cumDelta>=0?'bull':'bear')}">${x.cumDelta===null?'-':`${x.cumDelta>=0?'+':''}${fmt(x.cumDelta,2)}%`}</td>
             <td class="${x.instant>=0?'bull':'bear'}">${x.instant>=0?'做多':'做空'}</td>
             <td>${fmt(x.last,4)}</td>
             <td>${x.ts ? new Date(x.ts).toLocaleTimeString() : '-'}</td>
@@ -471,6 +474,22 @@
         soundOn = !soundOn;
         el.soundToggleBtn.textContent = '聲音:' + (soundOn?'開':'關');
         try{ localStorage.setItem('bg_sound', soundOn?'on':'off'); }catch(e){}
+      });
+
+      // 異動清單複製ID
+      el.hotTbody.addEventListener('click', (ev)=>{
+        const btn = ev.target.closest('.copy-btn');
+        if(!btn) return;
+        const id = btn.getAttribute('data-id');
+        if(!id) return;
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(id).then(()=>log('已複製ID：'+id));
+        }else{
+          const ta = document.createElement('textarea');
+          ta.value = id; document.body.appendChild(ta); ta.select();
+          try{ document.execCommand('copy'); log('已複製ID：'+id);}catch(e){}
+          document.body.removeChild(ta);
+        }
       });
 
       // 載入全部 USDT 本位永續合約清單
