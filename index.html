@@ -332,6 +332,15 @@
         }
       }
 
+      // 偵測是否正在異動清單範圍內選取文字（選取時暫停刷新以利複製）
+      function isSelectingIn(elm){
+        const sel = window.getSelection ? window.getSelection() : null;
+        if(!sel || sel.type !== 'Range') return false;
+        let node = sel.anchorNode;
+        while(node){ if(node === elm) return true; node = node.parentNode; }
+        return false;
+      }
+
       // 熱門異動清單（排行關時顯示 |instant| 大於閾值的前10名）
       function refreshHotList(){
         if(rankMode !== 'off'){ el.hotWrap.classList.add('hidden'); return; }
@@ -346,25 +355,66 @@
         });
         arr.sort((a,b)=> Math.abs(b.instant) - Math.abs(a.instant));
         const filtered = arr.filter(x=> Math.abs(x.instant) >= th).slice(0,10);
-        el.hotTbody.innerHTML = '';
-        if(filtered.length === 0){ el.hotWrap.classList.add('hidden'); return; }
+        if(filtered.length === 0){ el.hotWrap.classList.add('hidden'); el.hotTbody.innerHTML=''; return; }
         el.hotWrap.classList.remove('hidden');
+
+        // 若使用者正在選取異動清單中的文字，則暫停更新避免影響複製
+        if(isSelectingIn(el.hotWrap)) return;
+
+        const keep = new Set(filtered.map(x=>x.sym));
         for(const x of filtered){
-          const tr = document.createElement('tr');
+          let tr = el.hotTbody.querySelector(`tr[data-id="${x.sym}"]`);
+          if(!tr){
+            tr = document.createElement('tr');
+            tr.setAttribute('data-id', x.sym);
+            tr.classList.add(x.instant>=0 ? 'long' : 'short');
+            tr.innerHTML = `
+              <td class="fixed"><span class="sym">${x.sym}</span>
+                <button class="mini-btn copy-btn" data-id="${x.sym}" title="複製ID">複製</button>
+                <button class="mini-btn tv-btn" data-id="${x.sym}" title="開啟TradingView外掛">TV</button>
+              </td>
+              <td class="instant"></td>
+              <td class="cumDelta"></td>
+              <td class="dir"></td>
+              <td class="last"></td>
+              <td class="ts"></td>
+            `;
+            el.hotTbody.appendChild(tr);
+          }
+          // 僅更新非「合約」欄位內容
+          tr.classList.remove('long','short');
           tr.classList.add(x.instant>=0 ? 'long' : 'short');
-          tr.innerHTML = `
-            <td><span class="sym">${x.sym}</span>
-              <button class="mini-btn copy-btn" data-id="${x.sym}" title="複製ID">複製</button>
-              <button class="mini-btn tv-btn" data-id="${x.sym}" title="開啟TradingView外掛">TV</button>
-            </td>
-            <td>${x.instant>=0?'+':''}${fmt(x.instant,2)}%</td>
-            <td class="${x.cumDelta===null?'':(x.cumDelta>=0?'bull':'bear')}">${x.cumDelta===null?'-':`${x.cumDelta>=0?'+':''}${fmt(x.cumDelta,2)}%`}</td>
-            <td class="${x.instant>=0?'bull':'bear'}">${x.instant>=0?'做多':'做空'}</td>
-            <td>${fmt(x.last,4)}</td>
-            <td>${x.ts ? new Date(x.ts).toLocaleTimeString() : '-'}</td>
-          `;
+
+          const instCell = tr.querySelector('.instant');
+          if(instCell) instCell.textContent = `${x.instant>=0?'+':''}${fmt(x.instant,2)}%`;
+
+          const cdCell = tr.querySelector('.cumDelta');
+          if(cdCell){
+            cdCell.className = 'cumDelta ' + (x.cumDelta===null?'':(x.cumDelta>=0?'bull':'bear'));
+            cdCell.textContent = x.cumDelta===null?'-':`${x.cumDelta>=0?'+':''}${fmt(x.cumDelta,2)}%`;
+          }
+
+          const dirCell = tr.querySelector('.dir');
+          if(dirCell){
+            dirCell.className = 'dir ' + (x.instant>=0?'bull':'bear');
+            dirCell.textContent = x.instant>=0?'做多':'做空';
+          }
+
+          const lastCell = tr.querySelector('.last');
+          if(lastCell) lastCell.textContent = fmt(x.last,4);
+
+          const tsCell = tr.querySelector('.ts');
+          if(tsCell) tsCell.textContent = x.ts ? new Date(x.ts).toLocaleTimeString() : '-';
+
+          // 依排序重排（append 既有節點即可移動）
           el.hotTbody.appendChild(tr);
         }
+
+        // 移除不在前10清單中的列
+        Array.from(el.hotTbody.querySelectorAll('tr')).forEach(tr => {
+          const sym = tr.getAttribute('data-id');
+          if(!keep.has(sym)) tr.remove();
+        });
       }
       // 24H 排行（雙向）：點按循環 顯示+最大 -> 顯示-最大 -> 關閉
       let rankMode = 'off'; // 'off' | 'topGain' | 'topLoss'
